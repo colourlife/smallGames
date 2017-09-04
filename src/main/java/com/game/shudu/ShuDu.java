@@ -84,19 +84,21 @@ public class ShuDu {
     }
 
     public void process(){
-        logger.info("======== start process...");
+        logger.info("-------- start process...");
         long startIime = System.currentTimeMillis();
 //        this.processRecursive(0);
-        this.processLoop();
+        long stepCount = this.processLoop();
         long endTime = System.currentTimeMillis();
-        logger.info("======== process finished, use time:{}ms...", endTime - startIime);
+        logger.info("-------- process finished, {} steps, use time:{}ms...", stepCount, endTime - startIime);
     }
 
     /**
      * 循环处理数度
+     * @return 循环处理格子次数
      */
-    private void processLoop(){
-        for(int i=0; i<this.cells.length; ){
+    private long processLoop(){
+        long loopCount = 0;
+        for(int i=0; i<this.cells.length; loopCount++){
             Cell curCell = this.cells[i];
             logger.debug("process cell[{}, {}]...", curCell.x, curCell.y);
 
@@ -106,7 +108,7 @@ public class ShuDu {
                 curCell.isProceed = true;
             }
             // 判断当前格子是否是否还有可能的值
-            if(!curCell.isFixed && (curCell.getValidList().isEmpty() || !curCell.pickNextValidValue())){
+            if(!curCell.isFixed && !curCell.pickNextValidValue()){
                 if(i == 0)  throw new RuntimeException("no possible available for given conditions...");
                 logger.debug("cell[{}, {}] has one possible value now, back one step...", curCell.x, curCell.y);
                 curCell.clear();
@@ -114,7 +116,11 @@ public class ShuDu {
             }else{
                 i ++;
             }
+            if(loopCount % 10000 == 0){   // 纯粹用来统计遍历深度太长时处理进度
+                logger.warn("{} step have used, cell index:{}, continue processing...", loopCount, i);
+            }
         }
+        return loopCount;
     }
 
     /**

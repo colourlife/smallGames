@@ -5,7 +5,7 @@ import com.game.shudu.ShuDu;
 public class ShuDuRunner {
 
     public static void main(String[] args) {
-        ShuDu shuDu = new ShuDu(3);
+        ShuDu shuDu = new ShuDu(4);
         shuDu.addFixedValue(2, 1, 1);
         shuDu.addFixedValue(2, 2, 2);
         shuDu.addFixedValue(2, 3, 3);
