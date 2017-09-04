@@ -1,6 +1,6 @@
 package com.game.shudu;
 
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by lee on 2017-08-14.
@@ -36,13 +36,15 @@ public class Cell {
         return value;
     }
 
-    public List<Integer> getValidList() {
-        return validList;
-    }
-
     public void setValidList(List<Integer> validList) {
         if(!this.isFixed) {
-            this.validList = validList;
+            if(this.validList == null){
+                this.validList = new ArrayList<Integer>();
+            }else if(!this.validList.isEmpty()){
+                this.validList.clear();
+            }
+            this.validList.addAll(validList);
+            Collections.shuffle(this.validList);
         }
     }
 
@@ -62,8 +64,8 @@ public class Cell {
 
     public void clear(){
         if(!this.isFixed) {
+            this.validList.clear();
             this.currentPos = -1;
-            this.validList = null;
             this.value = null;
             this.isProceed = false;
         }
