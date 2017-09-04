@@ -62,14 +62,14 @@ public class ShuDu {
 
     /**
      * 新增预设的固定值
-     * @param x X坐标
-     * @param y Y坐标
+     * @param xPos X坐标
+     * @param yPos Y坐标
      * @param value 预设值
       */
-    public void addFixedValue(int x, int y, int value){
+    public void addFixedValue(int xPos, int yPos, int value){
         int scale = this.availableValues.length;
         boolean flag = false;
-        if((0 <= x && x < scale) && (0 <= y && y < scale)){
+        if((1 <= xPos && xPos <= scale) && (1 <= yPos && yPos <= scale)){
             for(int i=0; i<this.availableValues.length; i++){
                 if(this.availableValues[i] == value){
                     flag = true;
@@ -78,7 +78,7 @@ public class ShuDu {
             }
         }
         if(flag){  // 参数合法
-            Cell curCell = this.cells[x * scale + y];
+            Cell curCell = this.cells[(xPos - 1) * scale + yPos - 1];
             curCell.setFixedValue(value);
         }
     }
