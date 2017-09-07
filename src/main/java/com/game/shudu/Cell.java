@@ -44,6 +44,7 @@ public class Cell {
                 this.validList.clear();
             }
             this.validList.addAll(validList);
+            // 打乱格子有效值的排列排序，便于随机生成结果
             Collections.shuffle(this.validList);
         }
     }

@@ -19,7 +19,7 @@ public class ShuDu {
     private static Logger logger = LoggerFactory.getLogger(ShuDu.class);
 
     private int n;  // 数组规模 n*n
-    private int[] availableValues;  // 所有可能的数字集合，从小到大排列
+    private List<Integer> availableValues;  // 所有可能的数字集合，从小到大排列
     private int sumMatch;  // 数组一行或一列所有格子的数字和
     private Cell[] cells;  // 所有格子对象数组
 
@@ -36,9 +36,9 @@ public class ShuDu {
     private void initCells(){
         int width = n * n;
         // 初始化所有可能出现的值列表
-        this.availableValues = new int[width];
-        for(int i=0; i<this.availableValues.length; i++){
-            this.availableValues[i] = i + 1;
+        this.availableValues = new ArrayList<Integer>(width);
+        for(int i=0; i<width; i++){
+            this.availableValues.add(i + 1);
         }
         logger.info("available value could be one of {}", this.availableValues);
         // 初始化所有格子
@@ -53,8 +53,8 @@ public class ShuDu {
 
     private void initSumMatch(){
         int sumMatch = 0;
-        for(int i=0; i<this.availableValues.length; i++){
-            sumMatch += this.availableValues[i];
+        for(int i=0; i<this.availableValues.size(); i++){
+            sumMatch += this.availableValues.get(i);
         }
         logger.info("a group of digit must have a sum: {}", sumMatch);
         this.sumMatch = sumMatch;
@@ -67,11 +67,11 @@ public class ShuDu {
      * @param value 预设值
       */
     public void addFixedValue(int xPos, int yPos, int value){
-        int scale = this.availableValues.length;
+        int scale = this.availableValues.size();
         boolean flag = false;
         if((1 <= xPos && xPos <= scale) && (1 <= yPos && yPos <= scale)){
-            for(int i=0; i<this.availableValues.length; i++){
-                if(this.availableValues[i] == value){
+            for(int i=0; i<this.availableValues.size(); i++){
+                if(this.availableValues.get(i) == value){
                     flag = true;
                     break;
                 }
@@ -98,7 +98,7 @@ public class ShuDu {
      */
     private long processLoop(){
         long loopCount = 0;
-        for(int i=0; i<this.cells.length; loopCount++){
+        for(int i=0; i<this.cells.length; ){
             Cell curCell = this.cells[i];
             logger.debug("process cell[{}, {}]...", curCell.x, curCell.y);
 
@@ -109,14 +109,14 @@ public class ShuDu {
             }
             // 判断当前格子是否是否还有可能的值
             if(!curCell.isFixed && !curCell.pickNextValidValue()){
-                if(i == 0)  throw new RuntimeException("no possible available for given conditions...");
-                logger.debug("cell[{}, {}] has one possible value now, back one step...", curCell.x, curCell.y);
+                if(i == 0)  throw new RuntimeException("no possible values available for given conditions...");
+                logger.debug("cell[{}, {}] has no possible value now, back one step...", curCell.x, curCell.y);
                 curCell.clear();
                 i --;
             }else{
                 i ++;
             }
-            if(loopCount % 10000 == 0){   // 纯粹用来统计遍历深度太长时处理进度
+            if(++loopCount % 10000 == 0){   // 纯粹用来统计遍历深度太长时处理进度
                 logger.warn("{} step have used, cell index:{}, continue processing...", loopCount, i);
             }
         }
@@ -151,13 +151,15 @@ public class ShuDu {
                 rangeSum += cell.getValue();
             }
         }
-        // 开发计算
+        // 开始计算
+        int minHorizontalDelta = this.getMinDeltaInDirection(horizontalValues);
+        int minVerticalDalta = this.getMinDeltaInDirection(verticalValues);
+        int minRangeDelta = this.getMinDeltaInDirection(rangeValues);
         List<Integer> validValues = new ArrayList<Integer>();
-        for(int i=0; i<this.availableValues.length; i++){
-            int availableValue = this.availableValues[i];
-            if(horizontalSum >= this.sumMatch || verticalSum >= this.sumMatch || rangeSum >= this.sumMatch){
-                // 当前累计和大于要求的累积和，退出循环
-                break;
+        for(int i=0; i<this.availableValues.size(); i++){
+            int availableValue = this.availableValues.get(i);
+            if(horizontalSum + minHorizontalDelta > this.sumMatch || verticalSum + minVerticalDalta > this.sumMatch || rangeSum + minRangeDelta > this.sumMatch){
+                break;  // 当前累计和大于要求的累积和，退出循环
             }
             if(!horizontalValues.contains(availableValue) && !verticalValues.contains(availableValue) && !rangeValues.contains(availableValue)){
                 // 小于要求的累计和，且数字未出现在三种对应的格子集合中
@@ -165,6 +167,19 @@ public class ShuDu {
             }
         }
         return validValues;
+    }
+
+    private int getMinDeltaInDirection(List<Integer> directionValues){
+        if(directionValues.size() == this.availableValues.size()){
+            return 0;
+        }else{
+            for(Integer availableValue : this.availableValues){
+                if(!directionValues.contains(availableValue)){
+                    return availableValue * (this.availableValues.size() - directionValues.size());
+                }
+            }
+            return this.availableValues.size() - directionValues.size();
+        }
     }
 
     public boolean validation(boolean allowEmpty){
@@ -214,9 +229,9 @@ public class ShuDu {
                 values.add(cell.getValue());
             }
         }
-        return values.size() == this.availableValues.length
+        return values.size() == this.availableValues.size()
                 ? sum == this.sumMatch
-                : sum <= this.sumMatch - this.availableValues.length + values.size();
+                : sum <= this.sumMatch - this.availableValues.size() + values.size();
     }
 
     /**
@@ -224,7 +239,7 @@ public class ShuDu {
      */
     public String getFormatResult(){
         int numPrintWidth = this.getNumberMaxWidth() + 2;
-        int scale = this.availableValues.length;  // 数字矩阵规模
+        int scale = this.availableValues.size();  // 数字矩阵规模
         int width = scale * (numPrintWidth + 1) + 1;   // 待打印字符宽度
         StringBuilder resultStr = new StringBuilder(width * width);  // 待打印字符串
         // 构造待打印边界线
@@ -259,8 +274,8 @@ public class ShuDu {
 
     private int getNumberMaxWidth(){
         int maxNumLen = 1;
-        for(int i=0; i<this.availableValues.length; i++){
-            int numLen = String.valueOf(this.availableValues[i]).length();
+        for(int i=0; i<this.availableValues.size(); i++){
+            int numLen = String.valueOf(this.availableValues.get(i)).length();
             if(numLen > maxNumLen){
                 maxNumLen = numLen;
             }
