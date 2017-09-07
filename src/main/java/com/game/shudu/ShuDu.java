@@ -20,8 +20,10 @@ public class ShuDu {
 
     private int n;  // 数组规模 n*n
     private List<Integer> availableValues;  // 所有可能的数字集合，从小到大排列
-    private int sumMatch;  // 数组一行或一列所有格子的数字和
     private Cell[] cells;  // 所有格子对象数组
+    private int sumMatch;  // 数组一行或一列所有格子的数字和
+    private int maxStepAllowed = -1;  // 最大允许步数，超过步数后不再遍历，直接开始新的尝试或退出
+    private int maxRetryTimes = -1;  // 运行步数超出允许的最大步数后，可重试的次数
 
     public ShuDu(int n){
         if(n <= 0){
@@ -83,13 +85,33 @@ public class ShuDu {
         }
     }
 
-    public void process(){
+    public void setMaxStepAllowed(int maxStepAllowed){
+        this.maxStepAllowed = maxStepAllowed;
+    }
+
+    public void setMaxRetryTimes(int maxRetryTimes){
+        this.maxRetryTimes = maxRetryTimes;
+    }
+
+    public boolean process(){
         logger.info("-------- start process...");
         long startIime = System.currentTimeMillis();
-//        this.processRecursive(0);
+        boolean success = true;
+        int retryTimes = 0;
         long stepCount = this.processLoop();
+        while(this.maxStepAllowed > 0 && stepCount >= this.maxStepAllowed) {
+            if(++retryTimes > this.maxRetryTimes){
+                success = false;
+                logger.error("unable to finish processing with maxStepAllowed:{} and maxRetryTimes:{}", this.maxStepAllowed, this.maxRetryTimes);
+                break;
+            }
+            logger.warn("unable to finish processing in maxStepAllowed({}), retry for the {}th time...", this.maxStepAllowed, retryTimes);
+            this.reset();
+            stepCount = this.processLoop();
+        }
         long endTime = System.currentTimeMillis();
         logger.info("-------- process finished, {} steps, use time:{}ms...", stepCount, endTime - startIime);
+        return success;
     }
 
     /**
@@ -109,16 +131,17 @@ public class ShuDu {
             }
             // 判断当前格子是否是否还有可能的值
             if(!curCell.isFixed && !curCell.pickNextValidValue()){
-                if(i == 0)  throw new RuntimeException("no possible values available for given conditions...");
+                if(i == 0) {
+                    throw new RuntimeException("no possible values available for given conditions...");
+                }
                 logger.debug("cell[{}, {}] has no possible value now, back one step...", curCell.x, curCell.y);
                 curCell.clear();
                 i --;
             }else{
                 i ++;
             }
-            if(++loopCount % 10000 == 0){   // 纯粹用来统计遍历深度太长时处理进度
-                logger.warn("{} step have used, cell index:{}, continue processing...", loopCount, i);
-            }
+            // 超出允许运行最大步数后不管有无结束，均退出
+            if(++loopCount >= this.maxStepAllowed && this.maxStepAllowed > 0) break;
         }
         return loopCount;
     }
@@ -182,6 +205,14 @@ public class ShuDu {
         }
     }
 
+    private void reset(){
+        for(Cell cell : this.cells){
+            if(!cell.isFixed && cell.isProceed){
+                cell.clear();
+            }
+        }
+    }
+
     public boolean validation(boolean allowEmpty){
         logger.info("start validation...");
         boolean checkResult = true;
@@ -221,7 +252,7 @@ public class ShuDu {
             }else if(DIRECTION_RANGE == direction){
                 isRelated = cellCheck.x / n == cell.x / n && cellCheck.y / n == cell.y / n;
             }
-            if(isRelated && cellCheck.getValue() != null){
+            if(isRelated && cellCheck.getValue() != null && cell.getValue() != null){
                 sum += cell.getValue();
                 if(values.contains(cell.getValue())){  // 相关的格子有重复数字
                     return false;
