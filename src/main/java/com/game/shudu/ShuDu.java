@@ -260,6 +260,9 @@ public class ShuDu {
                 values.add(cell.getValue());
             }
         }
+        if(!allowEmpty){
+            return values.size() == this.availableValues.size() && sum == this.sumMatch;
+        }
         return values.size() == this.availableValues.size()
                 ? sum == this.sumMatch
                 : sum <= this.sumMatch - this.availableValues.size() + values.size();
