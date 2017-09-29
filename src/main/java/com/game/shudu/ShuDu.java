@@ -110,7 +110,12 @@ public class ShuDu {
             stepCount = this.processLoop();
         }
         long endTime = System.currentTimeMillis();
-        logger.info("-------- process finished, {} steps, use time:{}ms...", stepCount, endTime - startIime);
+        logger.info("-------- finish process {}, {} steps, use time:{}ms...",
+                    success ? "success" : "failed",
+                    retryTimes == 0 ? stepCount : String.format("%d*%d+%d=%d",
+                            this.maxStepAllowed, Math.min(retryTimes, this.maxRetryTimes), stepCount,
+                            this.maxStepAllowed * Math.min(retryTimes, this.maxRetryTimes) + stepCount),
+                    endTime - startIime);
         return success;
     }
 
