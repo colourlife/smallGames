@@ -34,7 +34,7 @@ public class ShuDuTest {
     public void testProcess3() throws Exception{
         for(int i=0; i<10; i++){
             ShuDu shuDu = new ShuDu(5);
-            shuDu.setMaxStepAllowed(30000000);
+            shuDu.setMaxStepAllowed(3000000);
             shuDu.setMaxRetryTimes(5);
 //            shuDu.addFixedValue(2, 1, 1);
 //            shuDu.addFixedValue(2, 2, 2);

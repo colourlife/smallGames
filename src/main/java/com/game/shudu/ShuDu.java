@@ -4,8 +4,7 @@ import com.game.utils.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by lee on 2017-08-14.
@@ -15,6 +14,12 @@ public class ShuDu {
     private static final Integer DIRECTION_HORIZONTAL = 1;  // 水平方向
     private static final Integer DIRECTION_VERTICAL = 2;  // 垂直方向
     private static final Integer DIRECTION_RANGE = 4;  // 临近区间方向
+
+    private static final char CHAR_BORDER = '#';
+    private static final char CHAR_SEPARATOR_X = '-';
+    private static final char CHAR_SEPARATOR_Y = '|';
+
+    private static final int CELL_INNER_WIDTH = 3;
 
     private static Logger logger = LoggerFactory.getLogger(ShuDu.class);
 
@@ -98,7 +103,7 @@ public class ShuDu {
         long startIime = System.currentTimeMillis();
         boolean success = true;
         int retryTimes = 0;
-        long stepCount = this.processLoop();
+        long stepCount = this.processLoop1();
         while(this.maxStepAllowed > 0 && stepCount >= this.maxStepAllowed) {
             if(++retryTimes > this.maxRetryTimes){
                 success = false;
@@ -107,7 +112,7 @@ public class ShuDu {
             }
             logger.warn("unable to finish processing in maxStepAllowed({}), retry for the {}th time...", this.maxStepAllowed, retryTimes);
             this.reset();
-            stepCount = this.processLoop();
+            stepCount = this.processLoop1();
         }
         long endTime = System.currentTimeMillis();
         logger.info("-------- finish process {}, {} steps, use time:{}ms...",
@@ -130,7 +135,7 @@ public class ShuDu {
             logger.debug("process cell[{}, {}]...", curCell.x, curCell.y);
 
             if(!curCell.isFixed && !curCell.isProceed){
-                List<Integer> validList = this.getValidValueList(curCell.x, curCell.y);
+                List<Integer> validList = this.getValidValueList(curCell);
                 curCell.setValidList(validList);
                 curCell.isProceed = true;
             }
@@ -147,36 +152,113 @@ public class ShuDu {
             }
             // 超出允许运行最大步数后不管有无结束，均退出
             if(++loopCount >= this.maxStepAllowed && this.maxStepAllowed > 0) break;
+            if(loopCount % 1000000 == 0) {
+                logger.warn("{} steps was used", loopCount);
+            }
         }
         return loopCount;
     }
 
     /**
-     * 获取格子上所有可能的值
-     * @param x
-     * @param y
+     * 循环处理数度 (从最容易猜出值的地方开始入手)
      * @return
      */
-    private List<Integer> getValidValueList(int x, int y) {
+    private long processLoop1(){
+        long loopCount = 0;
+        Deque<Cell> fillList = new LinkedList<Cell>();
+        while(true) {
+            Cell curCell = this.getNextUncertainCell();
+            if(curCell == null) {
+                break;
+            }
+            fillList.push(curCell);
+            if(!curCell.isProceed) {
+                List<Integer> validList = this.getValidValueList(curCell);
+                curCell.setValidList(validList);
+                curCell.isProceed = true;
+            }
+            while(true){
+                Cell cell = fillList.peek();
+                if(cell.pickNextValidValue()) {
+                   break;
+                }
+                cell.clear();
+                fillList.pop();
+                if(fillList.isEmpty()) {
+                    throw new RuntimeException("no possible values available for given conditions...");
+                }
+            }
+            // 超出允许运行最大步数后不管有无结束，均退出
+            if(++loopCount >= this.maxStepAllowed && this.maxStepAllowed > 0) break;
+            if(loopCount % 10000 == 0) {
+                logger.warn("{} steps was used", loopCount);
+            }
+        }
+        return loopCount;
+    }
+
+    /**
+     * found cell which has the largest possibility (less uncertain cells in 3 direction) to figure out the cell value
+     */
+    private Cell getNextUncertainCell() {
+        Cell retCell = null;
+        int maxKnownCnt = -1;
+        for(Cell cell : this.cells) {
+            if (!cell.isFixed && !cell.isProceed) {
+                int knownCnt = 0;
+                for (Cell perCell : this.getRelatedCells(cell, DIRECTION_HORIZONTAL)) {
+                    if (perCell.isFixed || perCell.isProceed) knownCnt++;
+                }
+                if (knownCnt > maxKnownCnt) {
+                    maxKnownCnt = knownCnt;
+                    retCell = cell;
+                }
+                knownCnt = 0;
+                for (Cell perCell : this.getRelatedCells(cell, DIRECTION_VERTICAL)) {
+                    if (perCell.isFixed || perCell.isProceed) knownCnt++;
+                }
+                if (knownCnt > maxKnownCnt) {
+                    maxKnownCnt = knownCnt;
+                    retCell = cell;
+                }
+                knownCnt = 0;
+                for (Cell perCell : this.getRelatedCells(cell, DIRECTION_RANGE)) {
+                    if (perCell.isFixed || perCell.isProceed) knownCnt++;
+                }
+                if (knownCnt > maxKnownCnt) {
+                    maxKnownCnt = knownCnt;
+                    retCell = cell;
+                }
+            }
+        }
+        return retCell;
+    }
+
+    /**
+     * 获取格子上所有可能的值
+     * @param cell
+     * @return
+     */
+    private List<Integer> getValidValueList(Cell cell) {
         int horizontalSum = 0;
         int verticalSum = 0;
         int rangeSum = 0;
         List<Integer> horizontalValues = new ArrayList<Integer>();
         List<Integer> verticalValues = new ArrayList<Integer>();
         List<Integer> rangeValues = new ArrayList<Integer>();
-        for(Cell cell : this.cells){
-            if(!cell.isProceed) continue;
-            if(cell.x == x){
-                horizontalValues.add(cell.getValue());
-                horizontalSum += cell.getValue();
+        for(Cell percell : this.cells){
+            if(!percell.isProceed) continue;
+            if(this.isRelatedCell(cell, percell, DIRECTION_HORIZONTAL)){
+                horizontalValues.add(percell.getValue());
+                horizontalSum += percell.getValue();
             }
-            if(cell.y == y){
-                verticalValues.add(cell.getValue());
-                verticalSum += cell.getValue();
+            if(this.isRelatedCell(cell, percell, DIRECTION_VERTICAL)){
+                verticalValues.add(percell.getValue());
+                verticalSum += percell.getValue();
             }
-            if(cell.x / n == x / n && cell.y / n  == y / n){
-                rangeValues.add(cell.getValue());
-                rangeSum += cell.getValue();
+            if(this.isRelatedCell(cell, percell, DIRECTION_RANGE)){
+                rangeValues.add(percell.getValue());
+                rangeSum += percell.getValue();
             }
         }
         // 开始计算
@@ -195,6 +277,27 @@ public class ShuDu {
             }
         }
         return validValues;
+    }
+
+    private boolean isRelatedCell(Cell left, Cell right, int direction) {
+        if(direction == DIRECTION_HORIZONTAL) {
+            return left.x == right.x;
+        } else if(direction == DIRECTION_VERTICAL) {
+            return left.y == right.y;
+        } else if(direction == DIRECTION_RANGE) {
+            return left.x / this.n == right.x / this.n && left.y / this.n == right.y / this.n;
+        }
+        return false;
+    }
+
+    private List<Cell> getRelatedCells(Cell cell, int direction) {
+        List<Cell> results = new ArrayList<Cell>();
+        for(Cell perCell : this.cells) {
+            if(this.isRelatedCell(cell, perCell, direction)) {
+                results.add(perCell);
+            }
+        }
+        return results;
     }
 
     private int getMinDeltaInDirection(List<Integer> directionValues){
@@ -277,7 +380,7 @@ public class ShuDu {
      * 获取数度格式化输出结果
      */
     public String getFormatResult(){
-        int numPrintWidth = this.getNumberMaxWidth() + 2;
+        int numPrintWidth = CELL_INNER_WIDTH;
         int scale = this.availableValues.size();  // 数字矩阵规模
         int width = scale * (numPrintWidth + 1) + 1;   // 待打印字符宽度
         StringBuilder resultStr = new StringBuilder(width * width);  // 待打印字符串
@@ -286,21 +389,21 @@ public class ShuDu {
         StringBuilder innerBorderLine = new StringBuilder(width);  // 内部边界线
         for(int i=0; i<scale; i++){
             if(i == 0){
-                outerBorderLine.append("=");
-                innerBorderLine.append("=");
+                outerBorderLine.append(CHAR_BORDER);
+                innerBorderLine.append(CHAR_BORDER);
             }
-            outerBorderLine.append(StringUtil.printCharTimes('=', numPrintWidth + 1));
-            innerBorderLine.append(StringUtil.printCharTimes('-', numPrintWidth))
-                    .append((i + 1) % n == 0 ? "=" : "-");
+            outerBorderLine.append(StringUtil.printCharTimes(CHAR_BORDER, numPrintWidth + 1));
+            innerBorderLine.append(StringUtil.printCharTimes(CHAR_SEPARATOR_X, numPrintWidth))
+                    .append((i + 1) % n == 0 ? CHAR_BORDER : CHAR_SEPARATOR_Y);
         }
         for(int i=0; i<scale; i++){
             // 构造带数字的打印行
             StringBuilder digitLine = new StringBuilder(width);
             for(int j=0; j<scale; j++){
                 Cell cell = this.cells[i * scale + j];
-                if(j == 0) digitLine.append("=");
+                if(j == 0) digitLine.append(CHAR_BORDER);
                 digitLine.append(StringUtil.printNumber(cell.getValue(), numPrintWidth))
-                        .append((j + 1) % n == 0 ? "=" : "-");
+                        .append((j + 1) % n == 0 ? CHAR_BORDER : CHAR_SEPARATOR_Y);
             }
             // 添加到打印结果串
             resultStr.append(i % n == 0  ? outerBorderLine : innerBorderLine).append("\n");
@@ -310,16 +413,4 @@ public class ShuDu {
         logger.debug("format result is:\n{}", resultStr);
         return resultStr.toString();
     }
-
-    private int getNumberMaxWidth(){
-        int maxNumLen = 1;
-        for(int i=0; i<this.availableValues.size(); i++){
-            int numLen = String.valueOf(this.availableValues.get(i)).length();
-            if(numLen > maxNumLen){
-                maxNumLen = numLen;
-            }
-        }
-        return maxNumLen;
-    }
-
 }
